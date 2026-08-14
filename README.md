@@ -64,3 +64,7 @@ docker compose exec backend python manage.py check
 The PostgreSQL data is stored in the named `postgres_data` volume. Running
 `docker compose down` leaves it intact.
 
+## Development workflow
+
+See [Branching Strategy](docs/branching-strategy.md) for branch naming, pull
+request, merge, and release rules.
