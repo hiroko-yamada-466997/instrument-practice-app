@@ -318,9 +318,18 @@ cross-AZ transferは含めない。
 部分時間の切り上げ、通信量、残存resourceにより増える。Terraform実装後、AWS Pricing Calculator
 へ実際のresourceと利用時間を入力して再見積もりする。
 
-AWS Budgetsは最初の課金resourceより先に作成し、月次actual costの `$5`、`$10`、`$20` と
-forecasted costの `$20` を初期候補とする。Budget通知はリアルタイムの停止装置ではないため、
-stop手順と残存resource確認を必須にする。
+AWS Budgetsは最初の課金resourceより先に、月額cost budgetを `20 USD` として作成する。
+通知はactual costに対して次の3段階とし、すべて同じ運用担当メールアドレスへ送る。
+
+| Actual cost | Budget比率 | 対応 |
+| ---: | ---: | --- |
+| `5 USD` | 25% | 早期警告。利用中のRuntimeとCost Explorerを確認する |
+| `10 USD` | 50% | 残存resourceと当月の利用予定を確認する |
+| `20 USD` | 100% | 緊急警告。作業中でなければRuntimeのdestroyを実施する |
+
+初期構成ではforecast通知とBudget Actionsによる自動制御を設定しない。Budgetの請求データと
+通知には遅延があり、20 USD到達時に課金が停止するわけではない。既存のALB、NAT Gateway、
+ECS、RDSも自動削除されないため、stop手順と翌日の残存resource確認を必須にする。
 
 料金体系の確認先:
 
@@ -392,7 +401,7 @@ Stagingは高可用性を保証する環境ではない。障害を検出し、c
 | # | 決定事項 | 推奨初期値 |
 | --- | --- | --- |
 | 1 | AWS account、root MFA、作業identity | root MFA有効、root access keyなし、IAM Identity Centerを使用 |
-| 2 | 月額上限とBudget通知先 | `$5/$10/$20`を段階通知、上限20 USDを初期案 |
+| 2 | 月額上限とBudget通知 | **決定済み:** 月額20 USD、actual cost `$5/$10/$20`でメール通知、自動アクションなし。通知先アドレスは設定時に入力 |
 | 3 | Stagingの稼働方針 | Manual start/stop、作業終了時にRuntimeを完全削除 |
 | 4 | DBデータ | Git管理のfixtureから毎回生成し、作業終了時に破棄 |
 | 5 | Domain/DNS | 所有domainのsubdomainを使用。未所有なら購入費を別計上 |
@@ -416,4 +425,3 @@ Stagingは高可用性を保証する環境ではない。障害を検出し、c
 8. Migration、fixture、health、HTTPS、log、image rollbackを検証する。
 9. Stop手順のdestroy planを提示し、明示承認後にRuntimeを削除する。
 10. 課金resourceが残っていないことと、codeから再作成できることを確認する。
-
