@@ -50,7 +50,7 @@ flowchart TB
     be -->|PostgreSQL :5432| db[(Disposable RDS for PostgreSQL\nprivate DB subnets\nSingle-AZ)]
     ecr[ECR repositories] --> fe
     ecr --> be
-    secrets[Secrets Manager / SSM] -. task injection .-> be
+    secrets[RDS-managed Secret / SSM] -. task injection .-> be
     fe --> logs[CloudWatch Logs]
     be --> logs
     gha[GitHub Actions] -->|OIDC / short-lived role| ecr
@@ -71,7 +71,7 @@ flowchart LR
     state[Terraform state] --- network[VPC / subnets / route tables / security groups]
     state --- ecr[ECR repositories / images]
     state --- iam[IAM / GitHub OIDC]
-    state --- config[ACM / DNS zone / SSM / Secrets]
+    state --- config[ACM / DNS zone / SSM application settings]
     state --- logs[CloudWatch log groups]
 ```
 
@@ -113,7 +113,7 @@ infrastructure/
 | State | 管理対象 | 操作頻度 |
 | --- | --- | --- |
 | `staging-foundation` | VPC、subnet、route table、Security Group、ECR、IAM、OIDC、ACM、DNS、log group、設定保存先 | 初回と設定変更時 |
-| `staging-runtime` | NAT Gateway/EIP、ALB/listener/target group、ECS service/task definition、RDS | 作業の開始・終了ごと |
+| `staging-runtime` | NAT Gateway/EIP、ALB/listener/target group、ECS service/task definition、RDSとRDS管理Secret | 作業の開始・終了ごと |
 
 初期学習ではlocal stateを許容するが、stateはGitへ追加しない。継続運用前にversioningと暗号化を
 有効にしたS3 backendおよびstate lockingへ移行する。Runtimeはfoundationのoutputをremote
@@ -133,9 +133,9 @@ Foundationのdestroyは通常手順に含めず、別コマンド、別state、�
 | ECR | Frontend/Backend image保存 | 常設foundation |
 | ALB | TLS終端とpath routing | 作業時runtime |
 | RDS for PostgreSQL | 使い捨てのStaging DB | 作業時runtime |
-| ACM | TLS証明書 | 常設foundation |
+| ACM | HTTPSに必要なTLS証明書 | 常設foundation。Start前に状態と有効期限を確認 |
 | Route 53または既存DNS | 固定名から作り直したALBへの名前解決 | Hosted zoneはfoundation、recordはruntime |
-| Secrets Manager / SSM | DB認証情報とアプリ設定 | 原則foundation、短命値はruntime |
+| Secrets Manager / SSM | RDS管理のDB認証情報とアプリ設定 | DB認証情報はruntime、SSM設定はfoundation |
 | CloudWatch | Log group、metrics、alarm | Log groupはfoundation、runtime依存alarmはruntime |
 | IAM | Task role、execution role、CI/CD role | 常設foundation |
 | AWS Budgets | 費用通知 | AWS account基盤として常設 |
@@ -143,6 +143,42 @@ Foundationのdestroyは通常手順に含めず、別コマンド、別state、�
 ECS、ECR、IAM、Route 53などのAWS管理control planeは利用者が停止・作成する対象ではない。
 課金と削除の対象はrepository、task、load balancer、DB instanceなど、Terraformで管理する個別
 resourceである。
+
+### ACM証明書の役割と更新
+
+ACM（AWS Certificate Manager）は、WebサイトをHTTPSで公開するためのTLS証明書を管理する
+サービスである。証明書は通信を暗号化し、ブラウザが正しいドメインへ接続していることを確認する
+ために使われる。今回の構成では、ブラウザからHTTPS通信を受けるALBへACM証明書を設定する。
+
+```text
+Browser -- HTTPS --> ALB -- HTTP --> Frontend / Backend
+                       ^
+                       |
+                 ACM certificate
+```
+
+証明書には有効期限がある。ACM発行証明書は通常、ALBなど対応するAWSサービスで使用中かつ
+DNS検証条件を満たしていれば自動更新される。しかし、このStagingでは停止時にALBを削除する。
+ALBが長期間存在しないと証明書が自動更新の対象外となり、次回Startまでに期限切れになる可能性が
+ある。詳細は[AWS Certificate Managerのマネージド更新](https://docs.aws.amazon.com/acm/latest/userguide/managed-renewal.html)
+を参照する。
+
+ACM証明書とDNS検証用CNAME recordはFoundationとして保持する。Startの最初に証明書の状態、
+有効期限、DNS検証recordを確認し、`ISSUED`かつ有効期限が14日以上残っている場合だけRuntimeの
+作成へ進む。期限切れ、発行失敗、または残存期間14日未満の場合は、FoundationのTerraformで
+証明書を明示的に再発行し、DNS検証が完了してからALBを作成する。
+
+```text
+Check ACM certificate
+  -> ISSUED and valid for 14 days or more: continue Runtime apply
+  -> otherwise: replace certificate in Foundation
+                -> wait for DNS validation
+                -> continue Runtime apply
+```
+
+証明書をRuntimeごとに発行・削除すると、Start時間と発行失敗の機会が増えるため採用しない。
+有効期限接近を見落とさないよう、ACMの期限接近EventBridge eventをSNSへ通知する構成をFoundationへ
+追加する。
 
 ## 5. ネットワークとSecurity Group
 
@@ -215,15 +251,27 @@ fixtureの更新、snapshot、または常設DBのどれを採用するか改め
 
 | 値 | 保存先案 | ライフサイクル |
 | --- | --- | --- |
-| RDS application credentials | Secrets Managerまたはruntimeで生成したSecret | Runtimeと一緒に削除。値をstate/output/logへ表示しない |
+| RDS master credentials | RDSがSecrets Managerで自動管理 | RDSと同じRuntime lifecycle。RDS削除時に関連Secretも削除 |
 | `DJANGO_SECRET_KEY` | SSM Parameter Store SecureString | Foundationとして保持、Staging専用 |
 | Fixture用一時password | 手動入力または短命なSecureString | 投入後に削除・rotation |
 | host、port、DB名、log level | ECS environmentまたはSSM Parameter Store String | Secretではない設定 |
 | GitHub/AWS federation | GitHub OIDC | 長期access keyを不要にする |
 
-Terraformがrandom値やRDS passwordを管理するとstateに平文相当の値が残る。State自体を機密
-情報として暗号化、アクセス制御、履歴管理する。Terraform outputに `sensitive=true` を付けても
-stateから値が消えるわけではない。
+RDSはmaster passwordをTerraformで指定せず、`manage_master_user_password=true` により生成と
+Secrets Managerへの保存をRDSへ委ねる。これによりpassword自体をTerraform stateへ保存せず、
+固定名のuser-managed Secretが削除後のrecovery windowに残って次回Startを妨げる問題を避ける。
+RDSが管理するSecretはDB instanceの削除時に関連metadataとともに削除され、次回は新しいRDSと
+Secretが作成される。詳細は
+[RDSとSecrets Managerによるpassword管理](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-secrets-manager.html)
+を参照する。
+
+Migration task、fixture task、初期のStaging Backendは、このRDS管理Secretを参照する。Production
+ではmaster userを通常のapplication処理に使わず、最小権限のapplication用DB userとcredential
+rotationを別途設計する。
+
+それでもTerraform stateには機密性のある設定やresource metadataが含まれ得るため、stateを暗号化、
+アクセス制御、履歴管理する。Terraform outputに `sensitive=true` を付けてもstateから値が消える
+わけではない。
 
 ECS task definitionの `secrets` でtask起動時に値を注入する。Execution roleには対象parameter/
 secretの読取権限だけを与え、application task roleと分離する。`NEXT_PUBLIC_*`にはSecretを
@@ -240,12 +288,14 @@ secretの読取権限だけを与え、application task roleと分離する。`N
 
 ### 作業開始（start）
 
-1. Runtimeの変数、対象image tag、作業者identityを確認する。
-2. Runtime planを保存し、作成される課金resourceと概算を確認する。
-3. 明示承認後、RDS、NAT Gateway、ALB、ECS serviceをdesired count 0でapplyする。
-4. RDSがavailableになったら、migration taskとfixture taskを順に実行する。
-5. 両方成功した場合だけECS desired countを1にする。
-6. Frontend、`/api/health/`、HTTPS、logを確認する。
+1. ACM証明書が `ISSUED` で、有効期限が14日以上残り、DNS検証recordが存在することを確認する。
+2. 条件を満たさない場合はFoundationで証明書を再発行し、DNS検証完了を待つ。
+3. Runtimeの変数、対象image tag、作業者identityを確認する。
+4. Runtime planを保存し、作成される課金resourceと概算を確認する。
+5. 明示承認後、RDS、NAT Gateway、ALB、ECS serviceをdesired count 0でapplyする。
+6. RDSがavailableになったら、migration taskとfixture taskを順に実行する。
+7. 両方成功した場合だけECS desired countを1にする。
+8. Frontend、`/api/health/`、HTTPS、logを確認する。
 
 ### 作業終了（stop）
 
@@ -253,9 +303,10 @@ secretの読取権限だけを与え、application task roleと分離する。`N
 2. ECS desired countを0にし、ALB connection drainingとtask停止を待つ。
 3. Runtimeのdestroy planを作成し、NAT Gateway、ALB、ECS、RDSなど対象を列挙する。
 4. DBデータが消えることを含め、ユーザーの明示承認を得る。
-5. Runtime rootに対して `terraform destroy` を実行する。
+5. Runtime rootに対して `terraform destroy` を実行する。RDS管理SecretもRDSとともに削除される。
 6. AWS Resource Explorer、tag検索、Cost Explorer等で課金resourceの残存を確認する。
-7. FoundationのVPC、ECR、IAM、ACM、必要なlog groupが残っていることを確認する。
+7. 固定名のuser-managed DB Secretが削除待ちで残っていないことを確認する。
+8. FoundationのVPC、ECR、IAM、ACM、DNS検証record、必要なlog groupが残っていることを確認する。
 
 開始・停止はPowerShell scriptまたはGitHub Actionsのmanual workflowへまとめる。ただし、destroyの
 承認を省略せず、対象account、region、workspace、planを画面に表示する。異常終了時にも課金resource
@@ -410,7 +461,7 @@ Stagingは高可用性を保証する環境ではない。障害を検出し、c
 | 8 | Frontend/Backend公開 | 同一ALBのpath routing |
 | 9 | Static assets | Next.jsは自身から配信。Django admin staticはWhiteNoiseまたはS3を選択 |
 | 10 | ECS CPU/Memoryとarchitecture | 各0.25 vCPU/0.5 GiB、可能ならARM64。実測で変更 |
-| 11 | Secret store | RDS資格情報はRuntime Secret、その他はSSMを基本とする |
+| 11 | Secret store | RDS資格情報はRDS管理Secret、その他はSSMを基本とする |
 | 12 | Start/stopの実行場所 | 初期はlocal PowerShell、安定後に承認付きmanual workflowを検討 |
 
 ## 15. 実装前チェックポイント
