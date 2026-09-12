@@ -28,3 +28,19 @@ venv/
 Thumbs.db
 .idea/
 .vscode/
+
+# Terraform (keep examples and dependency lock files committed)
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+*.tfplan
+*.plan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
