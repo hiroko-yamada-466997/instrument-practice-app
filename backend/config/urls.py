@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.db import connection
 from django.http import JsonResponse
-from django.urls import path
+from django.urls import include, path
 from rest_framework.decorators import api_view
 
 
@@ -17,5 +17,5 @@ def health_check(request):
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/health/", health_check, name="health-check"),
+    path("api/", include("practice.urls")),
 ]
-
