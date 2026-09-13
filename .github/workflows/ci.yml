@@ -41,6 +41,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Build production container image
+        run: docker build --tag instrument-practice-frontend:ci .
+
   backend:
     name: Backend
     runs-on: ubuntu-latest
