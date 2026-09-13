@@ -1,0 +1,15 @@
+output "vpc_id" {
+  value = aws_vpc.this.id
+}
+output "public_subnet_ids" {
+  value = [for az in sort(keys(aws_subnet.public)) : aws_subnet.public[az].id]
+}
+output "app_subnet_ids" {
+  value = [for az in sort(keys(aws_subnet.app)) : aws_subnet.app[az].id]
+}
+output "db_subnet_ids" {
+  value = [for az in sort(keys(aws_subnet.db)) : aws_subnet.db[az].id]
+}
+output "app_route_table_ids" {
+  value = [for az in sort(keys(aws_route_table.app)) : aws_route_table.app[az].id]
+}

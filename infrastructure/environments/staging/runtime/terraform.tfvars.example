@@ -1,0 +1,5 @@
+aws_profile             = "your-sso-profile"
+image_tag               = "replace-with-a-git-commit-sha"
+postgres_engine_version = "16.8" # Confirm current RDS support and application compatibility before apply.
+cpu_architecture        = "X86_64" # Change to ARM64 only after both images are verified.
+desired_count           = 0        # Change to 1 only after migrate and fixture one-off tasks succeed.
