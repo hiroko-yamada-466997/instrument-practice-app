@@ -30,14 +30,6 @@ module "ecr" {
   tags         = local.tags
 }
 
-resource "aws_ssm_parameter" "django_secret_key" {
-  name        = "/${local.name}/django-secret-key"
-  description = "Django secret key for staging"
-  type        = "SecureString"
-  value       = var.django_secret_key
-  tags        = local.tags
-}
-
 module "iam" {
   source                      = "../../../modules/iam"
   name                        = local.name
@@ -46,7 +38,7 @@ module "iam" {
   github_subject              = var.github_subject
   create_oidc_provider        = var.create_github_oidc_provider
   existing_oidc_provider_arn  = var.existing_github_oidc_provider_arn
-  django_secret_parameter_arn = aws_ssm_parameter.django_secret_key.arn
+  django_secret_parameter_arn = var.django_secret_parameter_arn
   ecr_repository_arns         = module.ecr.repository_arns
   tags                        = local.tags
 }

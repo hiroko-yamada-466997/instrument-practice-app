@@ -4,7 +4,7 @@ Terraformで東京リージョンの学習用Staging環境を管理する。`fou
 
 ## Safety boundary
 
-- `foundation`: VPC、subnet、route table、Security Group、ECR、IAM/OIDC、ACM/DNS検証、SSM、CloudWatch Logs/SNS、AWS Budget。
+- `foundation`: VPC、subnet、route table、Security Group、ECR、IAM/OIDC、ACM/DNS検証、外部管理SSM Parameterへの参照権限、CloudWatch Logs/SNS、AWS Budget。
 - `runtime`: NAT Gateway/EIP、ALB、Route 53 Alias、ECS、使い捨てRDS、Runtime依存alarm。
 - `terraform apply` と `terraform destroy` は、plan・対象account・概算費用を提示し、明示承認を得た後だけ実行する。
 - RuntimeのRDSは `skip_final_snapshot = true`、backup保持0、deletion protection無効。destroyするとStagingデータは復元できない。
@@ -20,6 +20,7 @@ Terraformで東京リージョンの学習用Staging環境を管理する。`fou
 - `10.20.0.0/16` と既存VPC/VPN/社内networkの非重複
 - Frontend/Backend imageのCPU architecture（初期値X86_64）
 - Django admin staticのWhiteNoise/S3方針
+- Staging専用`DJANGO_SECRET_KEY`を保持するSSM SecureStringの作成、管理担当者、rotation手順
 - 継続利用前にlocal stateをS3（versioning・暗号化・最小権限・locking）へ移行する時期
 
 また、Runtime開始前にFrontendの `GET /health`、Backendの `GET /api/health/`、Gunicorn起動、proxy/CSRF設定、非機密fixtureを確認する。
@@ -38,13 +39,30 @@ terraform -chdir=infrastructure/environments/staging/runtime init -backend=false
 terraform -chdir=infrastructure/environments/staging/runtime validate
 ```
 
-`init` が生成する `.terraform.lock.hcl` はreviewしてcommitする。`.terraform/`、state、実tfvars、planはGitに保存しない。
+`init` が生成する `.terraform.lock.hcl` はreviewしてcommitする。`.terraform/`、state、実tfvars、planはGitに保存しない。Django secretの値はTerraformへ渡さず、外部管理のSSM SecureStringにはARNだけで参照する。
+
+## Create the Django secret outside Terraform
+
+Foundationの初回plan前に、AWS Consoleまたは承認済みのsecret管理手順で`/instrument-practice-staging/django-secret-key`をSecureStringとして作成する。Staging専用の十分に長いランダム値を使用し、shell履歴、Terraform変数、tfvars、plan、state、Gitへ値を保存しない。
+
+値を復号せずにARNだけを確認する。
+
+```powershell
+aws ssm get-parameter `
+  --name /instrument-practice-staging/django-secret-key `
+  --query Parameter.ARN `
+  --output text `
+  --profile <profile> `
+  --region ap-northeast-1
+```
+
+取得したARNをFoundationの`django_secret_parameter_arn`へ設定する。Parameterの値とrotationはTerraform外で管理する。値を更新した場合、ECS serviceをforce new deploymentし、新しいBackend taskがhealthyになったことを確認する。`DJANGO_SECRET_KEY`のrotationは既存sessionや署名済みデータを無効化し得るため、必要に応じてDjangoの`SECRET_KEY_FALLBACKS`を使う。
 
 ## First foundation plan
 
 ```powershell
 Copy-Item infrastructure/environments/staging/foundation/terraform.tfvars.example infrastructure/environments/staging/foundation/terraform.tfvars
-# terraform.tfvarsのplaceholderを安全な値へ変更する
+# terraform.tfvarsのplaceholderを安全な非機密値と作成済みSSM ParameterのARNへ変更する
 aws sso login --profile <profile>
 aws sts get-caller-identity --profile <profile>
 terraform -chdir=infrastructure/environments/staging/foundation init
@@ -72,7 +90,7 @@ One-off taskはBackend serviceと同じtask definitionを使い、container comm
 3. Runtime rootで `terraform plan -destroy -out=runtime-destroy.tfplan` を作り、RDSデータ消失と削除対象を提示する。
 4. 明示承認後だけRuntime root全体へ `terraform destroy` を実行する。
 5. tag検索、Resource Explorer、Cost ExplorerでNAT Gateway/EIP、ALB、ECS task/service、RDS、Runtime alarm、Route 53 Aliasの残存がないことを確認する。RDS管理Secretも確認する。
-6. VPC、subnet、Security Group、ECR、IAM/OIDC、ACM validation record、SSM、log group、BudgetがFoundationとして残っていることを確認する。
+6. VPC、subnet、Security Group、ECR、IAM/OIDC、ACM validation record、外部管理SSM Parameter、log group、Budgetが残っていることを確認する。
 
 部分失敗時もRuntime root全体のdestroy planを作る。stateと実体がずれた場合は原因を調査し、import等をreviewしてから復旧する。
 

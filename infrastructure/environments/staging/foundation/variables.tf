@@ -46,9 +46,13 @@ variable "alert_email" {
   default  = null
   nullable = true
 }
-variable "django_secret_key" {
-  type      = string
-  sensitive = true
+variable "django_secret_parameter_arn" {
+  type        = string
+  description = "ARN of the externally managed SecureString containing the staging Django secret key"
+  validation {
+    condition     = can(regex("^arn:[^:]+:ssm:[^:]+:[0-9]{12}:parameter/.+$", var.django_secret_parameter_arn))
+    error_message = "Provide a valid SSM parameter ARN."
+  }
 }
 variable "github_repository" {
   type    = string

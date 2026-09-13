@@ -2,9 +2,9 @@
 aws_profile       = "your-sso-profile"
 domain_name       = "staging.example.com"
 route53_zone_id   = "Z0000000000000000000"
-budget_email      = "aws-budget@example.com"
-alert_email       = "aws-alerts@example.com"
-django_secret_key = "generate-a-unique-staging-only-value"
+budget_email                = "aws-budget@example.com"
+alert_email                 = "aws-alerts@example.com"
+django_secret_parameter_arn = "arn:aws:ssm:ap-northeast-1:123456789012:parameter/instrument-practice-staging/django-secret-key"
 
 # Set false and provide the ARN if the account already has GitHub's OIDC provider.
 create_github_oidc_provider       = true

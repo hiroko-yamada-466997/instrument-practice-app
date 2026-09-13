@@ -38,7 +38,7 @@ output "github_actions_role_arn" {
   value = module.iam.github_actions_role_arn
 }
 output "django_secret_parameter_arn" {
-  value = aws_ssm_parameter.django_secret_key.arn
+  value = var.django_secret_parameter_arn
 }
 output "log_group_names" {
   value = module.monitoring.log_group_names
