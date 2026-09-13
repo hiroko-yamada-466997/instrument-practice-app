@@ -1,0 +1,5 @@
+[
+  {"model":"practice.practicetarget","pk":1,"fields":{"name":"Hanon No. 1","kind":"exercise","composer":"Charles-Louis Hanon","is_active":true,"sort_order":10}},
+  {"model":"practice.practicetarget","pk":2,"fields":{"name":"Prelude in C major, BWV 846","kind":"piece","composer":"Johann Sebastian Bach","is_active":true,"sort_order":20}},
+  {"model":"practice.practicetarget","pk":3,"fields":{"name":"Major scales","kind":"technique","composer":"","is_active":true,"sort_order":30}}
+]

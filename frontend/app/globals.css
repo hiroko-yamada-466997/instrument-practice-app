@@ -1,44 +1,136 @@
 :root {
   color-scheme: light;
   font-family: Arial, Helvetica, sans-serif;
-  background: #f6f3ed;
-  color: #211f1b;
+  background: #f3f0e8;
+  color: #25231f;
+  --ink: #25231f;
+  --muted: #706b61;
+  --paper: #fffdf8;
+  --accent: #99452f;
+  --line: #d9d2c4;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-}
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, input, select, textarea { font: inherit; }
 
 main {
-  max-width: 48rem;
+  width: min(100% - 2rem, 64rem);
   min-height: 100vh;
   margin: 0 auto;
-  padding: 20vh 2rem 4rem;
+  padding: 5rem 0 7rem;
 }
+
+.hero { margin-bottom: 3rem; }
+h1, h2, h3, p { margin-top: 0; }
 
 h1 {
   max-width: 12ch;
-  margin: 0.25rem 0 1rem;
-  font-size: clamp(3rem, 9vw, 6rem);
-  line-height: 0.95;
-  letter-spacing: -0.06em;
+  margin-bottom: 1.25rem;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(3.4rem, 9vw, 7rem);
+  font-weight: 500;
+  line-height: 0.9;
+  letter-spacing: -0.065em;
 }
 
-p {
-  max-width: 38rem;
-  font-size: 1.1rem;
-  line-height: 1.6;
-}
+h2 { margin-bottom: 0.5rem; font-size: clamp(1.7rem, 4vw, 2.5rem); }
+h3 { margin-bottom: 0.35rem; font-size: 1.05rem; }
 
-.eyebrow {
-  color: #7a3526;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+.eyebrow, .section-label {
+  margin-bottom: 0.75rem;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
+.intro { max-width: 40rem; color: var(--muted); font-size: 1.15rem; line-height: 1.65; }
+.muted, .session p, .empty { color: var(--muted); }
+
+.error {
+  margin-bottom: 1.5rem;
+  padding: 0.9rem 1rem;
+  border-left: 4px solid #b42318;
+  background: #fff1ef;
+  color: #7a271a;
+}
+
+.success {
+  margin-bottom: 1.5rem;
+  padding: 0.9rem 1rem;
+  border-left: 4px solid #337357;
+  background: #eef8f2;
+  color: #24513f;
+}
+
+.practice-card {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(18rem, 1.2fr);
+  gap: 3rem;
+  padding: clamp(1.5rem, 5vw, 3rem);
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+  background: var(--paper);
+  box-shadow: 0 1.5rem 5rem rgb(63 52 34 / 8%);
+}
+
+form { display: grid; gap: 1rem; }
+label { display: grid; gap: 0.45rem; font-size: 0.9rem; font-weight: 700; }
+label span { color: var(--muted); font-size: 0.75rem; font-weight: 400; }
+
+input, select, textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: white;
+  color: var(--ink);
+  padding: 0.8rem 0.9rem;
+}
+
+textarea { min-height: 7rem; resize: vertical; }
+input:focus, select:focus, textarea:focus {
+  outline: 3px solid rgb(153 69 47 / 18%);
+  border-color: var(--accent);
+}
+
+button {
+  justify-self: start;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  color: white;
+  cursor: pointer;
+  padding: 0.85rem 1.3rem;
+  font-weight: 700;
+}
+
+button:hover { background: var(--accent); }
+button:disabled { cursor: not-allowed; opacity: 0.5; }
+
+.history { margin-top: 4rem; }
+.history-heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; }
+.history-heading > span { margin-bottom: 0.75rem; color: var(--muted); font-size: 0.85rem; }
+.session-list { border-top: 1px solid var(--line); }
+
+.session {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) auto minmax(10rem, auto);
+  gap: 1rem 2rem;
+  align-items: center;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.session p { margin-bottom: 0; font-size: 0.9rem; }
+.session .tempo { text-align: right; }
+.session .notes { grid-column: 1 / -1; max-width: 48rem; line-height: 1.55; }
+.empty { padding: 2rem 0; }
+
+@media (max-width: 700px) {
+  main { padding-top: 3rem; }
+  .practice-card { grid-template-columns: 1fr; gap: 1.5rem; }
+  .session { grid-template-columns: 1fr auto; }
+  .session .tempo { grid-column: 1 / -1; text-align: left; }
+}

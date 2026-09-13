@@ -46,6 +46,8 @@ services:
       context: ./frontend
     command: npm run dev -- --hostname 0.0.0.0
     environment:
+      BACKEND_INTERNAL_URL: "${BACKEND_INTERNAL_URL:-http://backend:8000}"
+      FRONTEND_PUBLIC_URL: "${FRONTEND_PUBLIC_URL:-http://localhost:3000}"
       NEXT_TELEMETRY_DISABLED: "1"
       WATCHPACK_POLLING: "true"
     volumes:

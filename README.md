@@ -1,8 +1,8 @@
 # Instrument Practice App
 
-A Docker-based monorepo for recording musical instrument practice. The initial
-environment contains a Next.js frontend, a Django REST Framework backend, and
-PostgreSQL. Application models are intentionally not included yet.
+A Docker-based monorepo for recording musical instrument practice. The app uses
+a Next.js frontend, a Django REST Framework backend, and PostgreSQL. The first
+vertical slice records practice repetition counts against a seeded practice target.
 
 ## Prerequisites
 
@@ -34,6 +34,12 @@ PostgreSQL. Application models are intentionally not included yet.
 The backend applies Django's built-in migrations when it starts. A successful
 health response includes `"database": "ok"`, confirming that Django can query
 PostgreSQL.
+
+Load local sample practice targets after the services start:
+
+```sh
+docker compose exec backend python manage.py loaddata staging_seed
+```
 
 ## Useful commands
 
@@ -68,3 +74,6 @@ The PostgreSQL data is stored in the named `postgres_data` volume. Running
 
 See [Branching Strategy](docs/branching-strategy.md) for branch naming, pull
 request, merge, and release rules.
+
+See [Application Architecture](docs/architecture/application.md) for the MVP,
+domain model, API contract, and infrastructure boundaries.
